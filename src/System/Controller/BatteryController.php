@@ -3,11 +3,15 @@
 namespace Micronomics\Passport\System\Controller;
 
 use Doctrine\ORM\EntityManagerInterface;
+use Micronomics\Passport\Domain\Dto\BatterySearchDto;
+use Micronomics\Passport\Domain\Service\BatterySearchService;
+use Micronomics\Passport\Framework\Dto\SearchResultDto;
 use Micronomics\Passport\Framework\Exception\InternalException;
 use Micronomics\Passport\Framework\Serializer\SerializerFactory;
 use Micronomics\Passport\System\Entity\BatteryEntity;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
+use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Attribute\MapRequestPayload;
 use Symfony\Component\Routing\Attribute\Route;
@@ -18,9 +22,13 @@ use Throwable;
 
 class BatteryController extends AbstractController
 {
+    protected BatterySearchService $searchService;
+
     public function __construct(
         protected EntityManagerInterface $em
-    ){}
+    ){
+        $this->searchService = new BatterySearchService($this->em);
+    }
 
     /**
      * @param BatteryEntity $entity
@@ -67,6 +75,30 @@ class BatteryController extends AbstractController
             return new JsonResponse(
                 data: SerializerFactory::create()
                     ->serialize($entity, 'json'),
+                status: Response::HTTP_OK,
+                json: true
+            );
+        }
+        catch (Throwable $e){
+            return $this->handleException($e);
+        }
+    }
+
+    /**
+     * @throws Throwable
+     */
+    #[Route("/api/batteries/search", name: 'api.battery.search', methods: ['POST'])]
+    public function search(#[MapRequestPayload] BatterySearchDto $searchDto, Request $request): JsonResponse
+    {
+        try {
+            $page = $request->query->get('page', 1);
+            $pageSize = $request->query->get('pageSize', SearchResultDto::DEFAULT_PAGE_SIZE);
+
+            $result = $this->searchService->search($searchDto, $page, $pageSize);
+
+            return new JsonResponse(
+                data: SerializerFactory::create()
+                    ->serialize($result, 'json'),
                 status: Response::HTTP_OK,
                 json: true
             );
